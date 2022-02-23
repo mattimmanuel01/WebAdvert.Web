@@ -1,4 +1,5 @@
-﻿using Amazon.Extensions.CognitoAuthentication;
+﻿using Amazon.AspNetCore.Identity.Cognito;
+using Amazon.Extensions.CognitoAuthentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
@@ -38,16 +39,61 @@ namespace WebAdvert.Web.Controllers
                     return View(model);
                 }
 
-                user.Attributes.Add("Name", model.Email);
+                user.Attributes.Add("name", model.Email);
                 var createdUser = await _userManager.CreateAsync(user, model.Password);
 
                 if (createdUser.Succeeded)
                 {
-                    RedirectToAction("Confirm");
+                    return RedirectToAction("Confirm");
+                }
+                else
+                {
+                    foreach (var item in createdUser.Errors)
+                    {
+                        ModelState.AddModelError(item.Code, item.Description);
+                    }
+
+                    return View(model);
                 }
             }
 
-            return View();
+            return View(model);
+        }
+
+        public async Task<IActionResult> Confirm(ConfirmModel model)
+        {
+            return View(model);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Confirm_Post(ConfirmModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                var user = await _userManager.FindByEmailAsync(model.Email);
+                if (user == null)
+                {
+                    ModelState.AddModelError("NotFound", "A user with the given email address was not found");
+                    return View(model);
+                }
+
+                var result = await (_userManager as CognitoUserManager<CognitoUser>).ConfirmSignUpAsync(user, model.Code, true);
+                if (result.Succeeded)
+                {
+                    return RedirectToAction("Index", "Home");
+                }
+                else
+                {
+                    foreach (var item in result.Errors)
+                    {
+                        ModelState.AddModelError(item.Code, item.Description);
+                    }
+
+                    return View(model);
+                }
+            }
+
+            return View(model);
         }
     }
 }
